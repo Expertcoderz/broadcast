@@ -1,0 +1,12 @@
+[Unit]
+Description=Display queued broadcasts on graphical login
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sleep 3
+ExecStart=/usr/bin/broadcast-dequeue
+
+[Install]
+WantedBy=graphical-session.target

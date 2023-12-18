@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+
+if [[ "$1" =~ -h|--help || ! "$1" ]]; then
+	printf 'Usage: %s [a[a]][q][v] ARGUMENTS...\n' "$0"
+	[[ "$(id -u)" != 0 ]] && printf '\nThis script must be run as root.\n'
+	exit 1
+fi
+
+if [[ "$(id -u)" != 0 ]]; then
+	printf 'Error! This script must be run as root.\n'
+	exit 1
+fi
+
+# Set flags, if present.
+verbose=; queue=; admins_only=
+if [[ "$1" =~ ^[avq]+$ ]]; then
+	[[ "$1" =~ v ]] && readonly verbose=true
+	[[ "$1" =~ q ]] && readonly queue=true
+	if [[ "$1" =~ a ]]; then
+		if [[ "$1" =~ a.*a ]]; then
+			readonly admins_only=2
+		else
+			readonly admins_only=1
+		fi
+	fi
+
+	# Remove flags (first argument) from the argument list, leaving just
+	# the arguments that will be passed on to notify-send later.
+	shift 1
+fi
+
+if [[ ! -f /etc/broadcast.conf ]]; then
+	printf 'The configuration file at /etc/broadcast.conf is missing.\n'
+	exit 1
+fi
+[[ "$verbose" ]] && printf 'Sourcing configuration file...\n'
+source /etc/broadcast.conf || exit 1
+
+if [[ "$admins_only" ]]; then
+	limit_to_users=()
+
+	for group in "${ADMIN_GROUPS[@]}"; do
+		[[ "$verbose" ]] && printf 'Adding users from group: %s\n' "$group"
+		mapfile -t limit_to_users < \
+			<(getent group "$group" | cut -d ':' -f 4 | tr ',' '\n')
+	done
+
+	if [[ "$admins_only" -gt 1 ]]; then
+		for group in "${ADMIN_EXTRA_GROUPS[@]}"; do
+			[[ "$verbose" ]] && printf 'Adding users from group: %s\n' "$group"
+			mapfile -t -O "${#limit_to_users[@]}" limit_to_users < \
+				<(getent group "$group" | cut -d ':' -f 4 | tr ',' '\n')
+		done
+	fi
+
+	[[ "$verbose" ]] && printf 'Limiting broadcast to the these users: %s\n' \
+		"${limit_to_users[*]}"
+fi
+
+user_is_excluded() {
+	if [[ "${#EXCLUDED_GROUPS[@]}" -gt 0 ]]; then
+		local user_groups
+		user_groups="$(groups "$1")" || {
+			printf 'Failed to get groups for %s.\n' "$1"
+			failed=true
+			return 0
+		}
+		for group in "${EXCLUDED_GROUPS[@]}"; do
+			[[ " $user_groups " = *" $group "* ]] && return 0
+		done
+	fi
+
+	if [[ "$admins_only" ]]; then
+		for uname in "${limit_to_users[@]}"; do
+			[[ "$1" = "$uname" ]] && return 1
+		done
+		return 0
+	fi
+
+	return 1
+}
+
+for user_info in $(getent passwd \
+	| awk -F: '($3>=1000)&&($3<60000){print $3":"$1":"$6}')
+do
+	uid="$(echo "$user_info" | cut -d ':' -f 1)"
+	uname="$(echo "$user_info" | cut -d ':' -f 2)"
+	homedir="$(echo "$user_info" | cut -d ':' -f 3)"
+
+	if user_is_excluded "$uname"; then
+		[[ "$verbose" ]] && printf 'Skipping user: %s\n' "$uname"
+		continue
+	fi
+
+	# Check that the user has a D-Bus session daemon running.
+	if pgrep -u "$uname" -f 'dbus-daemon.*--session' >/dev/null; then
+		[[ "$verbose" ]] && printf 'User %s is online; sending notification now.\n' "$uname"
+
+		DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
+			sudo -E -u "$uname" "$NOTIFY_SEND_BINARY" "$@" \
+			|| {
+			printf 'Notification failed for user %s\n' "$uname"
+			failed=true
+		}
+
+	elif [[ "$queue" ]]; then
+		[[ "$verbose" ]] && printf 'User %s is offline; placing notification in queue.\n' "$uname"
+
+		if [[ ! -d "$homedir" ]]; then
+			printf 'User %s is offline but lacks a valid home directory; skipping.\n' "$uname"
+			failed=true
+			continue
+		fi
+
+		# '@Q' helps to preserve argument quoting.
+		echo "${@@Q}" >> "$homedir"/.broadcast
+
+	elif [[ "$verbose" ]]; then
+		printf 'Skipping offline user: %s\n' "$uname"
+	fi
+done
+
+if [[ "$failed" ]]; then
+	[[ "$verbose" ]] && printf 'Broadcast completed with one or more errors.\n'
+	exit 1
+fi
+
+[[ "$verbose" ]] && printf 'Broadcast completed successfully.\n'
+exit 0

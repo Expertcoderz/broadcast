@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+if [[ "$1" =~ -h|--help ]]; then
+	printf 'Usage: %s [v]\n' "$0"
+	exit 1
+fi
+
+verbose=
+[[ "$1" =~ v ]] && readonly verbose=true
+
+if [[ ! -f /etc/broadcast.conf ]]; then
+	printf 'The configuration file at /etc/broadcast.conf is missing.\n'
+	exit 1
+fi
+[[ "$verbose" ]] && printf 'Sourcing configuration file...\n'
+source /etc/broadcast.conf || exit 1
+
+[[ "$verbose" ]] && printf 'Using queue file: %s\n' "$QUEUE_FILE_PATH"
+
+if [ ! -s "$QUEUE_FILE_PATH" ]; then
+	printf 'No queued broadcast messages.\n'
+	exit 0
+fi
+
+i=1
+while read -r line; do
+	[[ "$verbose" ]] && printf 'Processing line %i...\n' "$i"
+
+	timestamp="$(grep -Eo '^[[:digit:]]+[[:space:]]')" || {
+		printf 'Line %i is corrupt; skipping.\n' "$i"
+		continue
+	}
+
+	printf 'Reading broadcast at %s (line %i)\n' "$(date -d "@$timestamp")" "$i"
+
+	arguments="${line##"$timestamp"}"
+	if [ ! "$arguments" ]; then
+		printf 'Missing notification arguments; skipping line.\n'
+		continue
+	fi
+	printf 'Arguments: %s' "$arguments"
+
+	# shellcheck disable=SC2086
+	"$NOTIFY_SEND_BINARY" $arguments
+
+	(( i++ ))
+done < "$QUEUE_FILE_PATH"
+
+printf 'All done!\n'
+exit 0
