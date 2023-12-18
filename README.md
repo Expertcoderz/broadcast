@@ -9,7 +9,7 @@ Notifications can also be sent to administrators only, depending on the given co
 
 ## Usage
 
-```txt
+```
 # broadcast [a[a]][q][v] ARGUMENTS...
 ```
 
@@ -17,19 +17,19 @@ Where `ARGUMENTS...` are the usual arguments and options passed to `notify-send`
 
 The letters in the first (optional) argument to `broadcast` are flags that modify its behavior. They are as follows:
 
-- `a` --- Send the notification to administrators only. Administrators are users belonging to any group listed in `ADMIN_GROUPS` in the config. If specified twice (`aa`), users belonging in `ADMIN_EXTRA_GROUPS` will receive the notification as well.
+- `a` — Send the notification to administrators only. Administrators are users belonging to any group listed in `ADMIN_GROUPS` in the config. If specified twice (`aa`), users belonging in `ADMIN_EXTRA_GROUPS` will receive the notification as well.
 
-- `q` --- Queue notifications for offline users.
+- `q` — Queue notifications for offline users.
 
-- `v` --- Enable verbose output.
+- `v` — Enable verbose output.
 
 ### Examples
 
-```txt
+```
 # broadcast --urgency=normal 'This is a summary!' 'This is the notification body.'
 ```
 
-```txt
+```
 # broadcast q "If you're reading this right upon logon that means you've probably missed something important."
 ```
 
@@ -43,7 +43,7 @@ The `broadcast-dequeue` command is provided for users to receive missed notifica
 
 The usage of `broadcast-dequeue` is described as follows:
 
-```txt
+```
 $ broadcast-dequeue [v]
 ```
 
