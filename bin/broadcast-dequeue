@@ -15,9 +15,9 @@ fi
 [[ "$verbose" ]] && printf 'Sourcing configuration file...\n'
 source /etc/broadcast.conf || exit 1
 
-[[ "$verbose" ]] && printf 'Using queue file: %s\n' "$QUEUE_FILE_PATH"
+[[ "$verbose" ]] && printf 'Using queue file: %s\n' ~/"$QUEUE_FILE_PATH"
 
-if [ ! -s "$QUEUE_FILE_PATH" ]; then
+if [ ! -s ~/"$QUEUE_FILE_PATH" ]; then
 	printf 'No queued broadcast messages.\n'
 	exit 0
 fi
@@ -44,7 +44,7 @@ while read -r line; do
 	"$NOTIFY_SEND_BINARY" $arguments
 
 	(( i++ ))
-done < "$QUEUE_FILE_PATH"
+done < ~/"$QUEUE_FILE_PATH"
 
 printf 'All done!\n'
 exit 0

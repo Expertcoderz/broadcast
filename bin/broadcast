@@ -113,7 +113,7 @@ do
 		fi
 
 		# '@Q' helps to preserve argument quoting.
-		echo "${@@Q}" >> "$homedir"/.broadcast
+		echo "${@@Q}" >> "$homedir"/"$QUEUE_FILE_PATH"
 
 	elif [[ "$verbose" ]]; then
 		printf 'Skipping offline user: %s\n' "$uname"
